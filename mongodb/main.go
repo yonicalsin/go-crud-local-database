@@ -91,7 +91,13 @@ func main() {
 	// Server
 	server := echo.New()
 
+	// Initializing the Database
+	connect()
+
 	// Routes
+	server.GET("/", func(ctx echo.Context) error {
+		return ctx.String(http.StatusOK, "{message: 'welcome to first-example API', statusCode: 200}")
+	})
 	server.GET("/users", getAllUsers)
 
 	// Echo Server initializing
