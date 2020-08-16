@@ -1,76 +1,79 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/middleware"
-
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 )
 
-// User is ...
-type User struct {
-	ID       int    `json:"id,omitempty"`
-	Name     string `json:"name"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// Init is ...
-type Init struct {
-	Message   string `json:"message"`
-	SatusCode int    `json:"statusCode"`
-}
-
-func saveUser(ctx echo.Context) error {
-	user := &User{
-		Name:     ctx.FormValue("name"),
-		Username: ctx.FormValue("username"),
-		Password: ctx.FormValue("password"),
+type (
+	user struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
 	}
+)
 
-	return ctx.JSONPretty(http.StatusOK, user, "  ")
-}
-func getUser(ctx echo.Context) error {
-	id, err := strconv.Atoi(ctx.Param("id"))
+var (
+	users = map[int]*user{}
+	seq   = 1
+)
 
-	if err == nil {
-		fmt.Println("Error")
+//----------
+// Handlers
+//----------
+
+func createUser(c echo.Context) error {
+	u := &user{
+		ID: seq,
 	}
+	if err := c.Bind(u); err != nil {
+		return err
+	}
+	users[u.ID] = u
+	seq++
+	return c.JSON(http.StatusCreated, u)
+}
 
-	return ctx.JSONPretty(http.StatusOK, &User{
-		ID:       id,
-		Name:     "Yoni Calsin",
-		Username: "yonicalsin",
-		Password: "yonicalsin_password",
-	}, "  ")
+func getUser(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	return c.JSON(http.StatusOK, users[id])
+}
+func getAllUsers(c echo.Context) error {
+	return c.JSON(http.StatusOK, users)
+}
 
+func updateUser(c echo.Context) error {
+	u := new(user)
+	if err := c.Bind(u); err != nil {
+		return err
+	}
+	id, _ := strconv.Atoi(c.Param("id"))
+	users[id].Name = u.Name
+	return c.JSON(http.StatusOK, users[id])
+}
+
+func deleteUser(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	delete(users, id)
+	return c.NoContent(http.StatusNoContent)
 }
 
 func main() {
-	var server = echo.New()
+	e := echo.New()
 
-	// Configuration
-	server.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
-	}))
+	// Middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
-	// Middlewares
-	server.Use(middleware.Logger())
-	server.Use(middleware.Recover())
+	// Routes
+	e.GET("/users", getAllUsers)
+	e.POST("/users", createUser)
+	e.GET("/users/:id", getUser)
+	e.PUT("/users/:id", updateUser)
+	e.DELETE("/users/:id", deleteUser)
 
-	// e.GET("/users/:id", getUser)
-	server.GET("/", func(ctx echo.Context) error {
-		return ctx.JSONPretty(http.StatusOK, &Init{
-			Message:   "Bienvenido a la api de yoni calsin",
-			SatusCode: 200,
-		}, "  ")
-	})
-
-	server.POST("/user", saveUser)
-	server.GET("/user/:id", getUser)
-
-	server.Logger.Fatal(server.Start(":4000"))
+	// Start server
+	e.Logger.Fatal(e.Start(":1323"))
 }
