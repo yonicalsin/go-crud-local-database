@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/labstack/echo"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,6 +23,7 @@ type User struct {
 // DatabaseFactory is ...
 type DatabaseFactory struct {
 	conn *mongo.Database
+	user *mongo.Collection
 }
 
 var instance *DatabaseFactory
@@ -39,16 +43,47 @@ func connect() *DatabaseFactory {
 			log.Fatal(err)
 		}
 
-		instance = &DatabaseFactory{conn: client.Database("first-example-with-mongodb")}
+		conn := client.Database("first-example-with-mongodb")
+
+		// Collections
+		instance = &DatabaseFactory{
+			conn: conn,
+			user: conn.Collection("User"),
+		}
+
 	}
 	return instance
 }
 
-func ModelUser() {
-	model := connect().conn.Collection("users")
-}
+func getAllUsers(ctx echo.Context) error {
+	options := options.Find()
+	options.SetLimit(3)
 
-func getAllUsers(c echo.Context) error {
+	var results []*User
+
+	cur, err := connect().user.Find(context.TODO(), bson.D{{}}, options)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for cur.Next(context.TODO()) {
+
+		// create a value into which the single document can be decoded
+		var s User
+		err := cur.Decode(&s)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		results = append(results, &s)
+	}
+
+	if err := cur.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	return ctx.JSONPretty(http.StatusOK, results, "  ")
 }
 
 func main() {
